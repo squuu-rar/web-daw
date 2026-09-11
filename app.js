@@ -1,5 +1,5 @@
 /**
- * Web DAW - Audio Engine & Sequencer
+ * Web DAW - Audio Engine
  */
 
 const CONFIG = {
@@ -38,7 +38,7 @@ const CONFIG = {
         { note: 'C5', freq: 523.25, type: 'white' }
     ],
     MAP: {
-        'a': 0, 'w': 1, 's': 2, 'e': 3, 'd': 4, 'f': 5, 't': 6, 'g': 7, 'y': 8, 'h': 9, 'u': 10, 'j': 11, 'k': 12, 'o': 13, 'l': 14, 'p': 15 
+        'a': 0, 'w': 1, 's': 2, 'e': 3, 'd': 4, 'f': 5, 't': 6, 'g': 7, 'y': 8, 'h': 9, 'u': 10, 'j': 11, 'k': 12, 'o': 13, 'l': 14, 'p': 15
     }
 };
 
@@ -49,9 +49,7 @@ class AudioEngine {
         this.filter = null;
         this.analyser = null;
         this.initialized = false;
-
-        // Pre-generate noise buffer for snare/hihat
-        this.noiseBuffer = this.createNoiseBuffer();
+        this.noiseBuffer = null; // will be created after ctx is available
     }
 
     init() {
@@ -60,18 +58,15 @@ class AudioEngine {
         this.masterGain = this.ctx.createGain();
         this.filter = this.ctx.createBiquadFilter();
         this.analyser = this.ctx.createAnalyser();
-
         this.filter.type = 'lowpass';
         this.filter.frequency.value = 2000;
         this.filter.Q.value = 1;
-
         this.masterGain.connect(this.filter);
         this.filter.connect(this.analyser);
         this.analyser.connect(this.ctx.destination);
-
         this.masterGain.gain.value = 0.7;
         this.analyser.fftSize = 2048;
-
+        this.noiseBuffer = this.createNoiseBuffer();
         this.initialized = true;
         console.log("Audio Engine Initialized");
     }
@@ -86,21 +81,16 @@ class AudioEngine {
         return buffer;
     }
 
-    // --- SYNTHESIZERS ---
-
+    // Synth functions
     playKick(time, duration = 0.3) {
         const osc = this.ctx.createOscillator();
         const env = this.ctx.createGain();
-        
         osc.frequency.setValueAtTime(150, time);
         osc.frequency.exponentialRampToValueAtTime(40, time + 0.1);
-        
         env.gain.setValueAtTime(1, time);
         env.gain.exponentialRampToValueAtTime(0.01, time + duration);
-        
         osc.connect(env);
         env.connect(this.masterGain);
-        
         osc.start(time);
         osc.stop(time + duration);
     }
@@ -110,18 +100,14 @@ class AudioEngine {
         noise.buffer = this.noiseBuffer;
         const filter = this.ctx.createBiquadFilter();
         const env = this.ctx.createGain();
-
         filter.type = 'bandpass';
         filter.frequency.value = 1000;
         filter.Q.value = 1;
-
         env.gain.setValueAtTime(0.5, time);
         env.gain.exponentialRampToValueAtTime(0.01, time + duration);
-
         noise.connect(filter);
         filter.connect(env);
         env.connect(this.masterGain);
-
         noise.start(time);
         noise.stop(time + duration);
     }
@@ -131,17 +117,13 @@ class AudioEngine {
         noise.buffer = this.noiseBuffer;
         const filter = this.ctx.createBiquadFilter();
         const env = this.ctx.createGain();
-
         filter.type = 'highpass';
         filter.frequency.value = 7000;
-
         env.gain.setValueAtTime(0.3, time);
         env.gain.exponentialRampToValueAtTime(0.01, time + duration);
-
         noise.connect(filter);
         filter.connect(env);
         env.connect(this.masterGain);
-
         noise.start(time);
         noise.stop(time + duration);
     }
@@ -149,22 +131,16 @@ class AudioEngine {
     playSynth(freq, time, duration = 0.4) {
         const osc = this.ctx.createOscillator();
         const env = this.ctx.createGain();
-        
         osc.type = 'sawtooth';
         osc.frequency.setValueAtTime(freq, time);
-        
         env.gain.setValueAtTime(0.3, time);
         env.gain.exponentialRampToValueAtTime(0.01, time + duration);
-
-        // Apply filter for "synth" feel
         const lpf = this.ctx.createBiquadFilter();
         lpf.type = 'lowpass';
         lpf.frequency.value = this.filter.frequency.value;
-
         osc.connect(lpf);
         lpf.connect(env);
         env.connect(this.masterGain);
-
         osc.start(time);
         osc.stop(time + duration);
     }
@@ -177,24 +153,19 @@ class Sequencer {
         this.isPlaying = false;
         this.bpm = 120;
         this.currentStep = 0;
-        this.stepTime = 0;
-        this.lookahead = 25.0; // ms
-        this.scheduleAheadTime = 0.1; // seconds
+        this.lookahead = 25.0;
+        this.scheduleAheadTime = 0.1;
         this.nextNoteTime = 0;
         this.timerID = null;
-        
-        this.patterns = JSON.parse(localStorage.getItem('daw_patterns')) || 
-            Array(4).fill(0).map(() => Array(16).fill(false));
+        this.patterns = JSON.parse(localStorage.getItem('daw_patterns')) || Array(4).fill(0).map(() => Array(16).fill(false));
     }
 
     start() {
         if (!this.audio.initialized) this.audio.init();
         this.audio.ctx.state === 'suspended' && this.audio.ctx.resume();
-        
         this.isPlaying = true;
         this.currentStep = 0;
         this.nextNoteTime = this.audio.ctx.currentTime;
-        
         this.scheduleNextNote();
     }
 
@@ -217,33 +188,26 @@ class Sequencer {
 
     advanceStep() {
         const secondsPerBeat = 60.0 / this.bpm;
-        this.nextNoteTime += 0.25 * secondsPerBeat; // 16th note
+        this.nextNoteTime += 0.25 * secondsPerBeat;
         this.currentStep = (this.currentStep + 1) % 16;
         this.onStep(this.currentStep);
     }
 
     scheduleStep(step, time) {
-        const beatSeconds = 60.0 / this.bpm;
-        const stepDuration = beatSeconds / 4;
-
-        this.audio.patterns.forEach((track, trackIdx) => {
+        this.patterns.forEach((track, trackIdx) => {
             if (track[step]) {
-                switch(trackIdx) {
+                switch (trackIdx) {
                     case 0: this.audio.playKick(time); break;
                     case 1: this.audio.playSnare(time); break;
                     case 2: this.audio.playHiHat(time); break;
-                    case 3: 
-                        // For lead synth we use a fixed note or a simple melody
-                        // In a full DAW we'd use the piano sequence
-                        break; 
+                    case 3: // Lead
+                        // simple trigger handled below
+                        break;
                 }
             }
         });
-
-        // Special handling for Synth Lead melody (deterministic for now)
-        const leadTrack = this.audio.patterns[3];
+        const leadTrack = this.patterns[3];
         if (leadTrack[step]) {
-            // A basic scale (C Major)
             const melody = [261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 493.88, 523.25];
             const freq = melody[step % melody.length];
             this.audio.playSynth(freq, time, 0.2);
@@ -272,24 +236,20 @@ class UI {
     initUI() {
         const container = document.getElementById('sequencer-grid');
         container.innerHTML = '';
-
         CONFIG.TRACKS.forEach((track, tIdx) => {
             const row = document.createElement('div');
             row.className = 'track-row';
-            
             const label = document.createElement('div');
             label.className = 'track-label';
             label.textContent = track.name;
             label.style.color = track.color;
             row.appendChild(label);
-
-            for (let s = 0; s < 16; s++) {
+            for (let s = 0; s < CONFIG.STEPS; s++) {
                 const step = document.createElement('div');
                 step.className = 'step';
                 step.dataset.track = tIdx;
                 step.dataset.step = s;
                 if (this.seq.patterns[tIdx][s]) step.classList.add('active');
-                
                 step.onclick = () => {
                     step.classList.toggle('active');
                     this.seq.toggleStep(tIdx, s);
@@ -298,8 +258,6 @@ class UI {
             }
             container.appendChild(row);
         });
-
-        // Keyboard
         const kb = document.getElementById('keyboard');
         kb.innerHTML = '';
         CONFIG.KEYS.forEach(key => {
@@ -312,8 +270,7 @@ class UI {
     }
 
     setupEventListeners() {
-        // Transport
-        document.getElementById('play-stop-btn').onclick = (e) => {
+        document.getElementById('play-stop-btn').onclick = e => {
             if (this.seq.isPlaying) {
                 this.seq.stop();
                 e.target.textContent = 'Play';
@@ -326,46 +283,41 @@ class UI {
                 document.getElementById('engine-status').classList.add('on');
             }
         };
-
-        document.getElementById('bpm-range').oninput = (e) => {
+        document.getElementById('bpm-range').oninput = e => {
             this.seq.setBPM(e.target.value);
             document.getElementById('bpm-val').textContent = e.target.value;
         };
-
-        document.getElementById('volume-range').oninput = (e) => {
-            if(this.audio.masterGain) this.audio.masterGain.gain.value = e.target.value;
+        document.getElementById('volume-range').oninput = e => {
+            if (this.audio.masterGain) this.audio.masterGain.gain.value = e.target.value;
         };
-
-        document.getElementById('cutoff-range').oninput = (e) => {
-            if(this.audio.filter) this.audio.filter.frequency.setValueAtTime(e.target.value, this.audio.ctx.currentTime);
+        document.getElementById('cutoff-range').oninput = e => {
+            if (this.audio.filter) this.audio.filter.frequency.setValueAtTime(e.target.value, this.audio.ctx.currentTime);
         };
-
-        // Keyboard events
-        window.onkeydown = (e) => this.handleKeyDown(e);
-        window.onkeyup = (e) => this.handleKeyUp(e);
+        window.addEventListener('keydown', e => this.handleKeyDown(e));
+        window.addEventListener('keyup', e => this.handleKeyUp(e));
     }
 
     handleKeyDown(e) {
-        const key = e.key.toLowerCase();
-        const noteData = Object.keys(CONFIG.MAP).find(k => CONFIG.MAP[k] === e.keyCode) || null; 
-        // Simplified: checking CONFIG.MAP for key indices is better, 
-        // but let's use the keyboard map
-        const pianoKey = document.querySelector(`.key[data-note="${this.getNoteFromKey(e)}"]`);
-        if (pianoKey) {
-            pianoKey.classList.add('active');
-            this.audio.playSynth(parseFloat(pianoKey.dataset.freq), this.audio.ctx.currentTime, 0.5);
+        const code = e.code.toLowerCase();
+        const keyId = code.replace('key', '');
+        const idx = CONFIG.MAP[keyId];
+        if (idx !== undefined) {
+            const keyData = CONFIG.KEYS[idx];
+            const pianoKey = document.querySelector(`.key[data-note="${keyData.note}"]`);
+            if (pianoKey) pianoKey.classList.add('active');
+            if (this.audio.masterGain) this.audio.playSynth(parseFloat(keyData.freq), this.audio.ctx.currentTime, 0.5);
         }
     }
 
     handleKeyUp(e) {
-        const pianoKey = document.querySelector(`.key[data-note="${this.getNoteFromKey(e)}"]`);
-        if (pianoKey) pianoKey.classList.remove('active');
-    }
-
-    getNoteFromKey(e) {
-        // Mapping common keys to piano notes for demo
-        const map = {'a':'C4', 's':'D4', 'd':'E4', 'f':'F4', 'g':'G4', 'h':'A4', 'j':'B4', 'k':'C5'};
-        return map[e.key.toLowerCase()] || '';
+        const code = e.code.toLowerCase();
+        const keyId = code.replace('key', '');
+        const idx = CONFIG.MAP[keyId];
+        if (idx !== undefined) {
+            const keyData = CONFIG.KEYS[idx];
+            const pianoKey = document.querySelector(`.key[data-note="${keyData.note}"]`);
+            if (pianoKey) pianoKey.classList.remove('active');
+        }
     }
 
     drawOscilloscope() {
@@ -373,57 +325,119 @@ class UI {
         const ctx = canvas.getContext('2d');
         const bufferLength = this.audio.analyser ? this.audio.analyser.frequencyBinCount : 0;
         const dataArray = new Uint8Array(bufferLength);
-
         const draw = () => {
             requestAnimationFrame(draw);
             if (!this.audio.initialized || !this.audio.analyser) return;
-
+            canvas.width = canvas.clientWidth;
+            canvas.height = canvas.clientHeight;
             this.audio.analyser.getByteTimeDomainData(dataArray);
-
             ctx.fillStyle = '#000';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             ctx.lineWidth = 2;
             ctx.strokeStyle = '#00f2ff';
             ctx.beginPath();
-
-            const sliceWidth = canvas.width * 1.0 / bufferLength;
+            const sliceWidth = canvas.width / bufferLength;
             let x = 0;
-
             for (let i = 0; i < bufferLength; i++) {
                 const v = dataArray[i] / 128.0;
                 const y = v * canvas.height / 2;
-
                 if (i === 0) ctx.moveTo(x, y);
                 else ctx.lineTo(x, y);
-
                 x += sliceWidth;
             }
-
             ctx.lineTo(canvas.width, canvas.height / 2);
             ctx.stroke();
         };
         draw();
     }
-}
 
-// --- APP INITIALIZATION ---
+    async exportToWav(durationSec = 8) {
+        if (!this.audio.initialized) this.audio.init();
+        const offlineCtx = new OfflineAudioContext(2, this.audio.ctx.sampleRate * durationSec, this.audio.ctx.sampleRate);
+        const offlineEngine = new AudioEngine();
+        offlineEngine.ctx = offlineCtx;
+        offlineEngine.masterGain = offlineCtx.createGain();
+        offlineEngine.filter = offlineCtx.createBiquadFilter();
+        offlineEngine.analyser = offlineCtx.createAnalyser();
+        offlineEngine.filter.type = 'lowpass';
+        offlineEngine.filter.frequency.value = this.audio.filter.frequency.value;
+        offlineEngine.filter.Q.value = this.audio.filter.Q.value;
+        offlineEngine.masterGain.connect(offlineEngine.filter);
+        offlineEngine.filter.connect(offlineEngine.analyser);
+        offlineEngine.analyser.connect(offlineCtx.destination);
+        offlineEngine.masterGain.gain.value = this.audio.masterGain.gain.value;
+        offlineEngine.noiseBuffer = offlineEngine.createNoiseBuffer();
+        const seq = new Sequencer(offlineEngine, () => {});
+        seq.patterns = JSON.parse(localStorage.getItem('daw_patterns')) || Array(4).fill(0).map(() => Array(16).fill(false));
+        const secondsPerBeat = 60.0 / this.seq.bpm;
+        for (let bar = 0; bar < Math.ceil(durationSec / (secondsPerBeat * 4)); bar++) {
+            for (let step = 0; step < CONFIG.STEPS; step++) {
+                const time = bar * CONFIG.STEPS * (secondsPerBeat / 4) + step * (secondsPerBeat / 4);
+                seq.scheduleStep(step, time);
+            }
+        }
+        const renderedBuffer = await offlineCtx.startRendering();
+        const wavBlob = this.bufferToWav(renderedBuffer);
+        const url = URL.createObjectURL(wavBlob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'daw_recording.wav';
+        link.click();
+        URL.revokeObjectURL(url);
+    }
+
+    bufferToWav(audioBuffer) {
+        const numOfChan = audioBuffer.numberOfChannels;
+        const length = audioBuffer.length * numOfChan * 2 + 44;
+        const buffer = new ArrayBuffer(length);
+        const view = new DataView(buffer);
+        let offset = 0;
+        const writeString = s => {
+            for (let i = 0; i < s.length; i++) {
+                view.setUint8(offset++, s.charCodeAt(i));
+            }
+        };
+        writeString('RIFF');
+        view.setUint32(offset, 36 + audioBuffer.length * numOfChan * 2, true); offset += 4;
+        writeString('WAVE');
+        writeString('fmt ');
+        view.setUint32(offset, 16, true); offset += 4;
+        view.setUint16(offset, 1, true); offset += 2;
+        view.setUint16(offset, numOfChan, true); offset += 2;
+        view.setUint32(offset, audioBuffer.sampleRate, true); offset += 4;
+        view.setUint32(offset, audioBuffer.sampleRate * numOfChan * 2, true); offset += 4;
+        view.setUint16(offset, numOfChan * 2, true); offset += 2;
+        view.setUint16(offset, 16, true); offset += 2;
+        writeString('data');
+        view.setUint32(offset, audioBuffer.length * numOfChan * 2, true); offset += 4;
+        const left = audioBuffer.getChannelData(0);
+        const right = audioBuffer.getChannelData(1);
+        const interleaved = new Float32Array(audioBuffer.length * numOfChan);
+        if (numOfChan === 2) {
+            for (let i = 0; i < audioBuffer.length; i++) {
+                interleaved[i * 2] = left[i];
+                interleaved[i * 2 + 1] = right[i];
+            }
+        } else {
+            interleaved = left;
+        }
+        for (let i = 0; i < interleaved.length; i++) {
+            let s = Math.max(-1, Math.min(1, interleaved[i]));
+            view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true); offset += 2;
+        }
+        return new Blob([buffer], { type: 'audio/wav' });
+    }
+}
 
 window.onload = () => {
     const audio = new AudioEngine();
-    const sequencer = new Sequencer(audio, (stepIdx) => {
-        // Update UI highlighting
+    const sequencer = new Sequencer(audio, stepIdx => {
         document.querySelectorAll('.step').forEach(s => s.classList.remove('playing'));
         document.querySelectorAll(`.step[data-step="${stepIdx}"]`).forEach(s => s.classList.add('playing'));
     });
-    
     const ui = new UI(sequencer, audio);
-    
-    // Export Functionality (Simple Recording)
     document.getElementById('export-btn').onclick = async () => {
-        if (!audio.initialized) return alert("Please press Play first to start audio engine");
-        
-        // Note: Real production export would use OfflineAudioContext.
-        // For this demo, we'll alert the user that the engine is active.
-        alert("Feature: Recording high-quality WAV export requires starting a track. \nIn this demo version, please listen and record your masterpiece!");
+        if (!sequencer.isPlaying) alert('Start the sequencer before exporting.');
+        await ui.exportToWav();
     };
 };
