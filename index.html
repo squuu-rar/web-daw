@@ -1,31 +1,51 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Web DAW & Step Sequencer</title>
-    <link rel="stylesheet" href="style.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Web DAW</title>
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div id="app" class="app">
-        <h2>Web DAW & Step Sequencer</h2>
-        <div class="controls">
-            <button id="play-stop-btn" class="btn btn-primary">Play</button>
-            <span id="engine-status" class="status">Off</span>
-            <div class="range-group">
-                <label>BPM: <span id="bpm-val">120</span></label><input type="range" id="bpm-range" min="60" max="240" value="120">
-            </div>
-            <div class="range-group">
-                <label>Volume: <input type="range" id="volume-range" min="0" max="1" step="0.01" value="0.7"></label>
-            </div>
-            <div class="range-group">
-                <label>Filter Cutoff: <input type="range" id="cutoff-range" min="200" max="8000" step="20" value="2000"></label>
-            </div>
-            <button id="export-btn" class="btn btn-secondary">Export .WAV</button>
-        </div>
-        <canvas id="oscilloscope" class="oscilloscope"></canvas>
-        <div id="sequencer-grid" class="sequencer-grid"></div>
-        <div id="keyboard" class="keyboard"></div>
+<div id="daw-container">
+  <header>
+    <h1>Web DAW</h1>
+    <div class="transport-controls">
+      <div class="control-group">
+      <div class="control-group">
+        <label for="bpm-range">BPM</label>
+        <input type="range" id="bpm-range" min="50" max="200" value="120" step="1">
+        <span id="bpm-val">120</span>
+      </div>
+      <div class="control-group">
+        <label for="volume-range">Volume</label>
+        <input type="range" id="volume-range" min="0" max="1" step="0.01" value="0.7">
+      </div>
+      <div class="control-group">
+        <label for="cutoff-range">Filter Cutoff</label>
+        <input type="range" id="cutoff-range" min="200" max="2000" step="1" value="2000">
+      </div>
+      <button id="play-stop-btn" class="btn btn-primary">Play</button>
+        <span id="engine-status" class="status">Off</span>
+      <!-- stop button removed -->
+      <button id="export-btn" class="btn">Export .wav</button>
     </div>
-    <script src="app.js"></script>
+  </header>
+  <div class="main">
+    <div class="section">
+      <h2>Sequencer</h2>
+      <div id="sequencer-grid"></div>
+    </div>
+    <div class="section">
+      <h2>Oscilloscope</h2>
+      <canvas id="oscilloscope"></canvas>
+    </div>
+    <div class="section">
+      <h2>Piano</h2>
+      <div class="keyboard" id="keyboard"></div>
+    </div>
+  </div>
+</div>
+<script src="app.js"></script>
 </body>
 </html>
