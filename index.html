@@ -12,7 +12,6 @@
     <h1>Web DAW</h1>
     <div class="transport-controls">
       <div class="control-group">
-      <div class="control-group">
         <label for="bpm-range">BPM</label>
         <input type="range" id="bpm-range" min="50" max="200" value="120" step="1">
         <span id="bpm-val">120</span>
@@ -26,24 +25,34 @@
         <input type="range" id="cutoff-range" min="200" max="2000" step="1" value="2000">
       </div>
       <button id="play-stop-btn" class="btn btn-primary">Play</button>
-        <span id="engine-status" class="status">Off</span>
-      <!-- stop button removed -->
+      <span id="engine-status" class="status">Off</span>
       <button id="export-btn" class="btn">Export .wav</button>
     </div>
   </header>
-  <div class="main">
-    <div class="section">
-      <h2>Sequencer</h2>
-      <div id="sequencer-grid"></div>
-    </div>
-    <div class="section">
+  <div class="content-wrapper">
+    <aside class="sidebar">
+      <h2>Tracks</h2>
+      <ul id="track-list">
+        <li data-track="1">Kick</li>
+        <li data-track="2">Snare</li>
+        <li data-track="3">Hi-Hat</li>
+        <li data-track="4">Pad</li>
+      </ul>
+    </aside>
+    <main class="main-area">
+      <section class="section" id="sequencer-section">
+        <h2>Sequencer</h2>
+        <div id="sequencer-grid"></div>
+      </section>
+      <section class="section" id="piano-section">
+        <h2>Piano Roll</h2>
+        <div class="keyboard" id="keyboard"></div>
+      </section>
+    </main>
+    <aside class="sidebar-right">
       <h2>Oscilloscope</h2>
       <canvas id="oscilloscope"></canvas>
-    </div>
-    <div class="section">
-      <h2>Piano</h2>
-      <div class="keyboard" id="keyboard"></div>
-    </div>
+    </aside>
   </div>
 </div>
 <script src="app.js"></script>
